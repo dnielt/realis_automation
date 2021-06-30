@@ -9,7 +9,7 @@ from private.config import url
 from selenium import webdriver
 
 PATH =  os.path.join("c:", os.sep, "Program Files (x86)", "chromedriver.exe")
-download_folder = os.path.join("c:", os.sep, "Users", "Daniel", "Desktop", "2021-07-01 REALIS automation", "period_data")
+download_folder = os.path.join("c:", os.sep, "Users", "Daniel", "Desktop", "2021-07-01 REALIS automation", "data")
 
 saved_files = []
 
@@ -25,12 +25,6 @@ YEAR, MONTH = "year", "month"
 FROM, TO = "from", "to"
 
 # Load REALIS project names
-try:
-    with open("project_names.txt") as file:
-        project_names = json.load(file)
-except:
-    project_names = []
-
 
 def main():
     load()
@@ -47,13 +41,27 @@ def main():
 User functions
 """
 def load():
-    global driver 
+    global project_names, all_months, all_years, driver
+    try:
+        all_months = [str(i) for i in range(1, 13)]
+        with open("project_names.txt") as file:
+            project_names = json.load(file)
+        with open("all_years.txt") as file:
+            all_years = json.load(file)
+    except:
+        project_names, all_years = [], []
+        print("Failed to load project_names and all_years.\n"
+              "Please run update_project_names() and update_dates() later.")
     driver = webdriver.Chrome(PATH, options=options)
     driver.get(url)
+
+
 
 def agree():
     # Click "Agree and Continue"
     driver.find_element_by_xpath("//button[text()='Agree and Continue']").click()
+
+
 
 def navigate():
     # Click on resi > transaction > transaction search
@@ -61,6 +69,8 @@ def navigate():
     driver.implicitly_wait(2)
     driver.find_element_by_xpath("//a[contains(text(),'Residential')]").find_element_by_xpath("..//*[contains(text(),'Transaction')]").click()
     driver.find_element_by_xpath("//a[contains(text(),'Residential')]").find_element_by_xpath("//*[contains(text(),'Transaction Search')]").click()
+
+
 
 def select_project():
     # project name checker
@@ -79,6 +89,7 @@ def select_project():
     if not project_name:
         print("Please re-enter project name")
         return
+    
     # Select project by name
     driver.find_element_by_xpath("//*[@data-placeholder='Select project or location']").click()
     driver.implicitly_wait(6)
@@ -91,17 +102,50 @@ def select_project():
         fr"//input[@value='{project_name}']").click()
     driver.find_element_by_id("apply").click()
 
+
+
 def update_project_names():
+    global project_names
     # Select project by name
     driver.find_element_by_xpath("//*[@data-placeholder='Select project or location']").click()
-    
-    # Update project_names.txt via json
-    # also update dates
-    # collect project name and dates upfront before loading chrome
-    pass
+    temp = driver.find_elements_by_xpath(
+        "//div[@id='projectName']"
+        "//div[@class='checkbox']"
+        "//input")
+    result = []
+    for i in temp:
+        result.append(i.get_attribute('value'))
+    if result != project_names:
+        with open('project_names.txt', 'w') as file:
+            json.dump(result, file)
+            print('updated with new project names')
+    else:
+        print('no new project names')
+    driver.find_element_by_xpath("//button[contains(text(), 'Close')]").click()
+    project_names = result
+    return
+
+
 
 def update_dates():
-    pass
+    global all_years
+    # Collect all_years
+    saleYearFrom = driver.find_element_by_id("saleYearFrom")
+    saleYearFrom.click()
+    result = []
+    for element in saleYearFrom.find_elements_by_xpath("./option"):
+        result.append(element.get_attribute("value"))
+    result = [i for i in result if i]
+    if result != all_years:
+        with open('all_years.txt', 'w') as file:
+            json.dump(all_years, file)
+            print("updated with new dates")
+    else:
+        print("no new dates")
+    all_years = result
+    return
+
+
 
 def select_dates():
     global dates
@@ -127,28 +171,14 @@ def select_dates():
         print("Invalid entry, please re-enter dates.")
         return None
         
-    # Collect all_years
-    saleYearFrom = driver.find_element_by_id("saleYearFrom")
-    saleYearFrom.click()
-    all_years = []
-    for element in saleYearFrom.find_elements_by_xpath("./option"):
-        all_years.append(element.get_attribute("value"))
-    all_years = [i for i in all_years if i]
-    
-    # Collect all_months
-    saleMonthFrom = driver.find_element_by_id("saleMonthFrom")
-    saleMonthFrom.click()
-    all_months = []
-    for element in saleMonthFrom.find_elements_by_xpath("./option"):
-        all_months.append(element.get_attribute("value"))
-    all_months = [i for i in all_months if i]
-    
     # Select dates
     dates = enter_dates() 
     if dates is None:
         return
     
     # Input selected from dates
+    saleYearFrom = driver.find_element_by_id("saleYearFrom")
+    saleMonthFrom = driver.find_element_by_id("saleMonthFrom")
     saleYearFrom.find_element_by_xpath(f"//option[@value={dates[FROM][YEAR]}]").click()
     saleMonthFrom.find_element_by_xpath(f"//option[@value={dates[FROM][MONTH]}]").click()
     
@@ -161,9 +191,11 @@ def select_dates():
     saleMonthTo.find_element_by_xpath(f"./option[@value={dates[TO][MONTH]}]").click()
 
 
+
 def search():
     #search
     driver.find_element_by_id("submitSearch").click()
+
 
 
 def download():
@@ -200,6 +232,7 @@ def download():
                 saved_files.append(new_file_name)
     
     os.startfile(download_folder)
+
 
 
 def logout():
